@@ -14,11 +14,11 @@ venv.bak/
 # Streamlit
 .streamlit/
 
-# Data files (too large for git)
-*.pkl
-*.npy
-*.pth
+# Data files (only exclude large temporary files)
 data_summary.txt
+
+# Exclude large PyTorch models but allow small scikit-learn models
+*.pth
 
 # IDE
 .vscode/
