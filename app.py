@@ -26,46 +26,58 @@ def initialize_data():
         st.info("Please ensure chrome_ajmal_fragrance_data_20250909_202423.csv is in the app directory.")
         return None, None, None
     
-    # Check if processed files exist
-    if (os.path.exists("processed_fragrances.pkl") and 
-        os.path.exists("fragrance_vectors.npy") and 
-        os.path.exists("fragrance_notes.npy")):
-        
-        # Load existing processed data
-        df = pd.read_pickle("processed_fragrances.pkl")
-        vectors = np.load("fragrance_vectors.npy")
-        notes_list = np.load("fragrance_notes.npy", allow_pickle=True)
-        return df, vectors, notes_list
-    else:
-        # Process data for the first time
-        with st.spinner("🔄 Processing fragrance data for the first time..."):
-            preprocessor = FragranceDataPreprocessor(csv_path)
-            df, vectors, notes_list = preprocessor.get_processed_data()
+    try:
+        # Check if processed files exist
+        if (os.path.exists("processed_fragrances.pkl") and 
+            os.path.exists("fragrance_vectors.npy") and 
+            os.path.exists("fragrance_notes.npy")):
             
-            # Save processed data
-            df.to_pickle("processed_fragrances.pkl")
-            np.save("fragrance_vectors.npy", vectors)
-            np.save("fragrance_notes.npy", np.array(notes_list, dtype=object))
-            
+            # Load existing processed data
+            df = pd.read_pickle("processed_fragrances.pkl")
+            vectors = np.load("fragrance_vectors.npy")
+            notes_list = np.load("fragrance_notes.npy", allow_pickle=True)
             return df, vectors, notes_list
+        else:
+            # Process data for the first time
+            with st.spinner("🔄 Processing fragrance data for the first time (this may take a moment)..."):
+                st.info("🧠 Initializing AI system - processing 44 Ajmal fragrances...")
+                preprocessor = FragranceDataPreprocessor(csv_path)
+                df, vectors, notes_list = preprocessor.get_processed_data()
+                
+                # Save processed data
+                df.to_pickle("processed_fragrances.pkl")
+                np.save("fragrance_vectors.npy", vectors)
+                np.save("fragrance_notes.npy", np.array(notes_list, dtype=object))
+                
+                st.success("✅ Data processing completed!")
+                return df, vectors, notes_list
+    except Exception as e:
+        st.error(f"❌ Error processing data: {str(e)}")
+        return None, None, None
 
 @st.cache_resource
 def initialize_model(_vectors):
     """Initialize and train the recommendation model"""
-    if os.path.exists("fragrance_model.pkl"):
-        # Load existing model
-        recommender = FragranceRecommender()
-        recommender.load_model("fragrance_model.pkl")
-        return recommender
-    else:
-        # Train model for the first time
-        with st.spinner("🧠 Training AI model for the first time (this may take a moment)..."):
-            recommender = FragranceRecommender(embedding_dim=32)
-            recommender.train(_vectors, epochs=200)  # Reduced epochs for faster deployment
-            
-            # Save the trained model
-            recommender.save_model("fragrance_model.pkl")
+    try:
+        if os.path.exists("fragrance_model.pkl"):
+            # Load existing model
+            recommender = FragranceRecommender()
+            recommender.load_model("fragrance_model.pkl")
             return recommender
+        else:
+            # Train model for the first time
+            with st.spinner("🧠 Training AI model for the first time (this may take a moment)..."):
+                st.info("🤖 Training neural network on fragrance data...")
+                recommender = FragranceRecommender(embedding_dim=32)
+                recommender.train(_vectors, epochs=100)  # Reduced epochs for faster deployment
+                
+                # Save the trained model
+                recommender.save_model("fragrance_model.pkl")
+                st.success("✅ AI model training completed!")
+                return recommender
+    except Exception as e:
+        st.error(f"❌ Error with AI model: {str(e)}")
+        return None
 
 def display_fragrance_card(fragrance_info, index, score=None):
     """Display a fragrance card"""
@@ -171,23 +183,30 @@ def main():
     st.markdown("### Discover your perfect fragrance with AI-powered recommendations")
     
     # Initialize data and model
-    data_result = initialize_data()
-    if data_result is None:
+    try:
+        data_result = initialize_data()
+        if data_result is None:
+            st.error("❌ Unable to initialize data. Please check the CSV file.")
+            st.stop()
+        
+        df, vectors, notes_list = data_result
+        
+        if df is None or vectors is None:
+            st.error("❌ Failed to load or process data")
+            st.stop()
+        
+        recommender = initialize_model(vectors)
+        
+        if recommender is None:
+            st.error("❌ Failed to load or train model")
+            st.stop()
+        
+        st.success(f"✅ AI system ready! Loaded {len(df)} fragrances from Ajmal collection")
+        
+    except Exception as e:
+        st.error(f"❌ Initialization error: {str(e)}")
+        st.info("🔄 Please refresh the page to retry initialization")
         st.stop()
-    
-    df, vectors, notes_list = data_result
-    
-    if df is None or vectors is None:
-        st.error("❌ Failed to load or process data")
-        st.stop()
-    
-    recommender = initialize_model(vectors)
-    
-    if recommender is None:
-        st.error("❌ Failed to load or train model")
-        st.stop()
-    
-    st.success(f"✅ Loaded {len(df)} fragrances from Ajmal collection")
     
     # Sidebar for fragrance selection
     with st.sidebar:
